@@ -217,7 +217,7 @@ def configure(data_dir, barcode_path, _retrain):
     # args.learning_rate = 1e-3
     args.hidden_dim = 600
     args.latent_dim = 300
-    args.train_GMVAE_epochs = 200
+    args.train_GMVAE_epochs = 100
     args.bulk_encoder_epochs = 1000
     # args.dropout = 0.05
     args.batch_size = num_cells

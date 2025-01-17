@@ -4,6 +4,7 @@ import umap
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from _misc import *
+#from _test_recon import *
 
 
 def zinb_loss(y_true, y_pred, pi, r, eps=1e-10):
@@ -87,10 +88,15 @@ def train_GMVAE(
 
     if (epoch + 1) % 100 == 0:
         ############################  reconstruction with train data
-        x_recon, zs = model.module.decode_with_labels(mus, logvars, labels_train)
-        x_recon = x_recon.cpu().detach().numpy()
-        export_mtx(x_recon, "x_recon")
-        plot_umap(zs.cpu().detach().numpy(), labels_train.cpu().detach().numpy(), color_map, mapping_dict, "UMAP of Latent Z", "umap_latent")
+        test_recon(
+            x_train=x_train,
+            labels_train=labels_train,
+            mus=mus,
+            logvars=logvars,
+            model=model,
+            mapping_dict=mapping_dict,
+            color_map=color_map,
+        )
 
         # Save reconstructed.
         # torch.save(reconstructed, "_pt/x_recon_training.pt")
@@ -101,14 +107,13 @@ def train_GMVAE(
         torch.save(logvars, "_pt/GMVAE_logvars.pt")
         torch.save(pis, "_pt/GMVAE_pis.pt")
 
-        mus = mus.mean(0)
-        logvars = logvars.mean(0)
-        pis = pis.mean(0)
-
+        mus_ = mus.mean(0)
+        logvars_ = logvars.mean(0)
+        pis_ = pis.mean(0)
         # Save the mean, logvar, and pi.
-        torch.save(mus, "_pt/GMVAE_mus_mean.pt")
-        torch.save(logvars, "_pt/GMVAE_logvars_mean.pt")
-        torch.save(pis, "_pt/GMVAE_pis_mean.pt")
+        torch.save(mus_, "_pt/GMVAE_mus_mean.pt")
+        torch.save(logvars_, "_pt/GMVAE_logvars_mean.pt")
+        torch.save(pis_, "_pt/GMVAE_pis_mean.pt")
         print("GMVAE mu & var & pi saved.")
 
         model.eval()

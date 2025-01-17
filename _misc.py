@@ -60,20 +60,3 @@ def qqplot(arr, filename, legend, title):
     plt.savefig(f"_plots/qq_{filename}.png")
     # plt.show()
     plt.close()
-
-
-def resample(gen_test):
-    # resample generated data
-    resample = ""
-    size = 2286884
-    if resample == "linspace":
-        indices = np.linspace(0, len(gen_test) - 1, size).astype(int)
-        gen_test = gen_test[indices]
-    elif resample == "fourier":
-        gen_test = signal.resample(gen_test, size)
-    elif resample == "pd":
-        gen_test = pd.Series(gen_test)
-        gen_test = gen_test.interpolate(method="linear")[:: len(gen_test) // size]
-    if resample != "":
-        gen_test = np.sort(gen_test)
-    return gen_test

@@ -6,10 +6,12 @@ from torch.utils.data import TensorDataset, DataLoader
 from models import GaussianMixtureVAE, bulkEncoder
 from generate import generate
 
+#from _test_recon import *
 from _misc import *
 from _validation import *
 
 _retrain = True
+_ori = True
 
 
 # Train GMVAE. Refer to train_GMVAE.py for the implementation and model checkpoint path.
@@ -48,20 +50,21 @@ def train_model_GMVAE(
         print(f"Using {torch.cuda.device_count()} GPUs!")
         # Wrap the model with nn.DataParallel
         GMVAE_model = nn.DataParallel(GMVAE_model)
-        """
         try:
             # Load the state dict (assuming it was saved from a model wrapped with nn.DataParallel)
-            gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
+            if _ori:
+                gmvae_state_dict = torch.load("saved_files/GMVAE_model.pt")
+            else:
+                gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
             GMVAE_model.load_state_dict(gmvae_state_dict, strict=True)
             print("Loaded existing GMVAE_model.pt")
         except:
-        """
-        # Initialize weights.
-        for m in GMVAE_model.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_normal_(m.weight)
-                nn.init.zeros_(m.bias)
-        print("Initialized GMVAE_model")
+            # Initialize weights.
+            for m in GMVAE_model.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.xavier_normal_(m.weight)
+                    nn.init.zeros_(m.bias)
+            print("Initialized GMVAE_model")
 
         kl_weight = 0.0
         kl_weight_max = 1.0
@@ -74,7 +77,7 @@ def train_model_GMVAE(
                 kl_weight += kl_weight_increment
                 kl_weight = min(kl_weight, kl_weight_max)
             # Train model.
-            total_loss = train_GMVAE(
+            total_loss, mus, logvars, pis = train_GMVAE(
                 x_train,
                 labels_train,
                 GMVAE_model,
@@ -89,6 +92,15 @@ def train_model_GMVAE(
                 device,
             )
             losses.append(total_loss)
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(losses, label="Train Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.title("Train Loss")
+        plt.savefig(f"_plots/loss_GMVAE.png")
+        plt.close()
 
 
 # Train BulkEncoder. Refer to train_bulkEncoder.py for the implementation and model checkpoint path.
@@ -113,39 +125,46 @@ def train_model_BulkEncoder(
     from train_bulkEncoder import train_BulkEncoder
 
     scMus = (
-        torch.load("_pt/GMVAE_mus_mean.pt").to(device).detach().requires_grad_(False)
+        torch.load("saved_files/GMVAE_mus.pt").to(device).detach().requires_grad_(False)
+        if _ori
+        else torch.load("_pt/GMVAE_mus_mean.pt").to(device).detach().requires_grad_(False)
     )
     scLogVars = (
-        torch.load("_pt/GMVAE_logvars_mean.pt")
-        .to(device)
-        .detach()
-        .requires_grad_(False)
+        torch.load("saved_files/GMVAE_logvars.pt").to(device).detach().requires_grad_(False)
+        if _ori
+        else torch.load("_pt/GMVAE_logvars_mean.pt").to(device).detach().requires_grad_(False)
     )
     scPis = (
-        torch.load("_pt/GMVAE_pis_mean.pt").to(device).detach().requires_grad_(False)
+        torch.load("saved_files/GMVAE_pis.pt").to(device).detach().requires_grad_(False)
+        if _ori
+        else torch.load("_pt/GMVAE_pis_mean.pt").to(device).detach().requires_grad_(False)
     )
 
     input_dim, hidden_dim, latent_dim, K = model_param_tuple
     bulkEncoder_model = bulkEncoder(input_dim, hidden_dim, latent_dim, K)
 
-    """
     if os.path.exists(f"_pt/bulkEncoder_model.pt"):
-        encoder_state_dict = torch.load(f"_pt/bulkEncoder_model.pt")
+        if _ori:
+            encoder_state_dict = torch.load(f"saved_files/bulkEncoder_model.pt")
+        else:
+            encoder_state_dict = torch.load(f"_pt/bulkEncoder_model.pt")
         bulkEncoder_model.load_state_dict(encoder_state_dict, strict=True)
     else:
-    """
-    # Initialize weights.
-    for m in bulkEncoder_model.modules():
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight)
-            nn.init.zeros_(m.bias)
+        # Initialize weights.
+        for m in bulkEncoder_model.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+                nn.init.zeros_(m.bias)
 
     optimizer = torch.optim.Adam(bulkEncoder_model.parameters(), lr=1e-3)
     GMVAE_model = GaussianMixtureVAE(input_dim, hidden_dim, latent_dim, K)
     GMVAE_model = nn.DataParallel(GMVAE_model)
 
     # Load the state dict (assuming it was saved from a model wrapped with nn.DataParallel)
-    gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
+    if _ori:
+        gmvae_state_dict = torch.load("saved_files/GMVAE_model.pt")
+    else:
+        gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
     GMVAE_model.load_state_dict(gmvae_state_dict, strict=True)
     bulkEncoder_model = bulkEncoder_model.to(device)
 
@@ -217,18 +236,21 @@ if __name__ == "__main__":
     # num_cells = args.num_cells
     num_cells = args.X_test.shape[0]
 
-    GMVAE_model = GMVAE_model = GaussianMixtureVAE(input_dim, hidden_dim, latent_dim, K)
-    bulkEncoder_model = bulkEncoder(input_dim, hidden_dim, latent_dim, K)
-
-    encoder_state_dict = torch.load(f"_pt/bulkEncoder_model.pt")
-    gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
-
-    bulkEncoder_model.load_state_dict(encoder_state_dict, strict=True)
-    GMVAE_model = nn.DataParallel(GMVAE_model)
-
     # Load the state dict (assuming it was saved from a model wrapped with nn.DataParallel)
-    gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
+    GMVAE_model = GMVAE_model = GaussianMixtureVAE(input_dim, hidden_dim, latent_dim, K)
+    GMVAE_model = nn.DataParallel(GMVAE_model)
+    if _ori:
+        gmvae_state_dict = torch.load("saved_files/GMVAE_model.pt")
+    else:
+        gmvae_state_dict = torch.load("_pt/GMVAE_model.pt")
     GMVAE_model.load_state_dict(gmvae_state_dict, strict=True)
+
+    bulkEncoder_model = bulkEncoder(input_dim, hidden_dim, latent_dim, K)
+    if _ori:
+        encoder_state_dict = torch.load(f"saved_files/bulkEncoder_model.pt")
+    else:
+        encoder_state_dict = torch.load(f"_pt/bulkEncoder_model.pt")
+    bulkEncoder_model.load_state_dict(encoder_state_dict, strict=True)
 
     _gen_opt = "test"
     if _gen_opt == "train":
